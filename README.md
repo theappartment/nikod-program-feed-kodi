@@ -7,7 +7,7 @@ The addon reads an authorized plain-text schedule feed and exposes days, languag
 ## Install
 
 1. Download the repository ZIP:
-   `https://raw.githubusercontent.com/theappartment/nikod-program-feed-kodi/main/zips/repository.nikod.programfeed/repository.nikod.programfeed-0.1.0.zip`
+   `https://github.com/theappartment/nikod-program-feed-kodi/releases/download/v0.1.10/repository.nikod.programfeed-0.1.0.zip`
 2. In Kodi, open `Settings > Add-ons > Install from zip file`.
 3. Select the downloaded ZIP.
 4. Open `Install from repository > Nikod Program Feed Repository > Video add-ons`.
@@ -28,6 +28,13 @@ The addon reads an authorized plain-text schedule feed and exposes days, languag
 - `zips/`: installable versioned ZIPs.
 - `addons.xml`: Kodi repository index.
 - `addons.xml.md5`: Kodi repository checksum.
+
+## Release Assets
+
+GitHub Releases contain the user-facing install ZIPs:
+
+- `repository.nikod.programfeed-0.1.0.zip`: install this first in Kodi.
+- `plugin.video.nikod.programfeed-0.1.10.zip`: direct addon package, mainly for debugging/manual installs.
 
 ## Build
 
