@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.nikod.programfeed" name="Nikod Program Feed" version="0.1.11" provider-name="Nikod">
+<addon id="plugin.video.nikod.programfeed" name="Nikod Program Feed" version="0.1.12" provider-name="Nikod">
   <requires>
-    <import addon="xbmc.python" version="3.0.0"/>
+    <import addon="xbmc.python" version="2.26.0"/>
   </requires>
   <extension point="xbmc.python.pluginsource" library="default.py">
     <provides>video</provides>

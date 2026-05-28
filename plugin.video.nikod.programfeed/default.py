@@ -2,15 +2,28 @@ import re
 import os
 import ssl
 import sys
-import urllib.error
-import urllib.request
-import urllib.parse
 import socket
+
+try:
+    import urllib.error as url_error
+    import urllib.request as url_request
+    import urllib.parse as url_parse
+    import urllib.parse as url_encode
+except ImportError:
+    import urllib as url_encode
+    import urlparse as url_parse
+    import urllib2 as url_request
+    import urllib2 as url_error
 
 import xbmc
 import xbmcaddon
 import xbmcgui
 import xbmcplugin
+
+try:
+    TimeoutError
+except NameError:
+    TimeoutError = socket.timeout
 
 
 DEFAULT_USER_AGENT = (
@@ -39,7 +52,7 @@ def normalize_url(value):
     if "://" not in url:
         url = "https://" + url
 
-    parsed = urllib.parse.urlparse(url)
+    parsed = url_parse.urlparse(url)
     if not parsed.scheme or not parsed.netloc:
         return ""
     return url
@@ -49,18 +62,31 @@ def verified_ssl_context():
     cafile = os.environ.get("SSL_CERT_FILE") or os.environ.get("REQUESTS_CA_BUNDLE")
     if cafile and os.path.exists(cafile):
         return ssl.create_default_context(cafile=cafile)
-    return ssl.create_default_context()
+    if hasattr(ssl, "create_default_context"):
+        return ssl.create_default_context()
+    return None
 
 
 def is_ssl_verify_error(exc):
     reason = getattr(exc, "reason", exc)
-    return isinstance(reason, ssl.SSLCertVerificationError) or isinstance(exc, ssl.SSLCertVerificationError)
+    verify_error = getattr(ssl, "SSLCertVerificationError", None)
+    return verify_error is not None and (isinstance(reason, verify_error) or isinstance(exc, verify_error))
+
+
+def request_for(url, user_agent, method=None):
+    request = url_request.Request(url, headers={"User-Agent": user_agent})
+    if method and hasattr(request, "get_method"):
+        request.get_method = lambda: method
+    return request
 
 
 def fetch_text(url, user_agent, timeout, ssl_context=None):
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    with urllib.request.urlopen(request, timeout=timeout, context=ssl_context) as response:
+    request = request_for(url, user_agent)
+    response = urlopen(request, timeout=timeout, context=ssl_context)
+    try:
         data = response.read()
+    finally:
+        response.close()
     for encoding in ("utf-8", "latin-1"):
         try:
             return data.decode(encoding)
@@ -70,7 +96,7 @@ def fetch_text(url, user_agent, timeout, ssl_context=None):
 
 
 def www_variant(url):
-    parsed = urllib.parse.urlparse(url)
+    parsed = url_parse.urlparse(url)
     host = parsed.hostname or ""
     if not host or host.startswith("www."):
         return ""
@@ -78,20 +104,20 @@ def www_variant(url):
     netloc = "www." + host
     if parsed.port:
         netloc += ":{0}".format(parsed.port)
-    return urllib.parse.urlunparse(
+    return url_parse.urlunparse(
         (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
     )
 
 
 def swap_scheme(url):
-    parsed = urllib.parse.urlparse(url)
+    parsed = url_parse.urlparse(url)
     if parsed.scheme == "https":
         scheme = "http"
     elif parsed.scheme == "http":
         scheme = "https"
     else:
         return ""
-    return urllib.parse.urlunparse(
+    return url_parse.urlunparse(
         (scheme, parsed.netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
     )
 
@@ -105,7 +131,7 @@ def candidate_feed_urls(url):
 
 
 def should_try_next_feed_url(exc):
-    if isinstance(exc, urllib.error.HTTPError):
+    if isinstance(exc, url_error.HTTPError):
         return exc.code in (403, 404)
     reason = getattr(exc, "reason", exc)
     return isinstance(reason, socket.gaierror)
@@ -119,17 +145,17 @@ def fetch_text_with_dns_fallback(url, user_agent, timeout):
             if candidate != url:
                 xbmc.log("Nikod Program Feed URL fallback: {0}".format(candidate))
             return fetch_text(candidate, user_agent, timeout, context)
-        except urllib.error.URLError as exc:
+        except url_error.URLError as exc:
             last_error = exc
             if is_ssl_verify_error(exc):
                 xbmc.log(
                     "Nikod Program Feed SSL verification fallback for feed host: {0}".format(
-                        urllib.parse.urlparse(candidate).hostname or candidate
+                        url_parse.urlparse(candidate).hostname or candidate
                     )
                 )
                 try:
                     return fetch_text(candidate, user_agent, timeout, ssl._create_unverified_context())
-                except urllib.error.URLError as fallback_exc:
+                except url_error.URLError as fallback_exc:
                     last_error = fallback_exc
                     if should_try_next_feed_url(fallback_exc):
                         continue
@@ -140,7 +166,16 @@ def fetch_text_with_dns_fallback(url, user_agent, timeout):
 
     if last_error:
         raise last_error
-    raise urllib.error.URLError("No candidate feed URLs were available")
+    raise url_error.URLError("No candidate feed URLs were available")
+
+
+def urlopen(request, timeout, context=None):
+    if context is not None:
+        try:
+            return url_request.urlopen(request, timeout=timeout, context=context)
+        except TypeError:
+            pass
+    return url_request.urlopen(request, timeout=timeout)
 
 
 def media_content_type(url, user_agent, timeout):
@@ -152,17 +187,23 @@ def media_content_type(url, user_agent, timeout):
     if ".mpd" in lower:
         return "application/dash+xml"
 
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent}, method="HEAD")
+    request = request_for(url, user_agent, method="HEAD")
     context = verified_ssl_context()
     try:
-        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+        response = urlopen(request, timeout=timeout, context=context)
+        try:
             content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
-    except urllib.error.URLError as exc:
+        finally:
+            response.close()
+    except url_error.URLError as exc:
         if is_ssl_verify_error(exc):
             xbmc.log("Nikod Program Feed media probe SSL verification fallback: {0}".format(url))
             try:
-                with urllib.request.urlopen(request, timeout=timeout, context=ssl._create_unverified_context()) as response:
+                response = urlopen(request, timeout=timeout, context=ssl._create_unverified_context())
+                try:
                     content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+                finally:
+                    response.close()
             except Exception as fallback_exc:
                 xbmc.log("Nikod Program Feed media probe failed: {0}".format(fallback_exc))
                 return ""
@@ -178,8 +219,8 @@ def media_content_type(url, user_agent, timeout):
 
 
 def describe_url_error(url, exc):
-    host = urllib.parse.urlparse(url).hostname or ""
-    if isinstance(exc, urllib.error.HTTPError):
+    host = url_parse.urlparse(url).hostname or ""
+    if isinstance(exc, url_error.HTTPError):
         return "HTTP error {0} loading feed: {1}".format(exc.code, host or url)
     reason = getattr(exc, "reason", exc)
     if isinstance(reason, socket.gaierror):
@@ -214,7 +255,7 @@ def normalized_language(value):
 
 
 def channel_code_from_url(url):
-    parsed = urllib.parse.urlparse(url)
+    parsed = url_parse.urlparse(url)
     match = re.search(r"/([^/]+)\.php$", parsed.path, re.IGNORECASE)
     return match.group(1).upper() if match else ""
 
@@ -300,7 +341,7 @@ def add_notice(handle, title, plot):
 
 
 def plugin_url(params):
-    query = urllib.parse.urlencode(params)
+    query = url_encode.urlencode(params)
     return sys.argv[0] + ("?" + query if query else "")
 
 
@@ -310,7 +351,7 @@ def query_params():
     query = sys.argv[2] or ""
     if query.startswith("?"):
         query = query[1:]
-    return {key: values[0] for key, values in urllib.parse.parse_qs(query).items()}
+    return {key: values[0] for key, values in url_parse.parse_qs(query).items()}
 
 
 def selected_program_index(params):
@@ -455,7 +496,7 @@ def main():
 
     try:
         text = fetch_text_with_dns_fallback(feed_url, user_agent, timeout)
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+    except (url_error.URLError, TimeoutError, OSError) as exc:
         add_notice(handle, "Could not load program feed", describe_url_error(feed_url, exc))
         xbmcplugin.endOfDirectory(handle)
         return
