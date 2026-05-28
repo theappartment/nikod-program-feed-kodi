@@ -30,6 +30,9 @@ DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 )
+DEFAULT_FEED_URL = "https://sportsonline.vc/prog.txt"
+DEFAULT_DIRECT_STREAM_URL = "https://v4.sportssonline.click/channels/hd/hd8.php"
+DEFAULT_DIRECT_STREAM_TITLE = "Canale diretto"
 
 
 def setting(addon, key, fallback=""):
@@ -460,9 +463,9 @@ def resolve_program(handle, program, user_agent, timeout):
 def main():
     addon = xbmcaddon.Addon()
     handle = int(sys.argv[1])
-    feed_url = normalize_url(first_setting(addon, ("feed_url", "feed.url")))
-    direct_url = normalize_url(first_setting(addon, ("direct_stream_url", "direct.url", "direct_url")))
-    direct_title = first_setting(addon, ("direct_stream_title", "direct.title"), "Canale diretto")
+    feed_url = normalize_url(first_setting(addon, ("feed_url", "feed.url"), DEFAULT_FEED_URL))
+    direct_url = normalize_url(first_setting(addon, ("direct_stream_url", "direct.url", "direct_url"), DEFAULT_DIRECT_STREAM_URL))
+    direct_title = first_setting(addon, ("direct_stream_title", "direct.title"), DEFAULT_DIRECT_STREAM_TITLE)
     user_agent = first_setting(addon, ("feed_user_agent", "feed.user_agent"), DEFAULT_USER_AGENT)
     params = query_params()
 
