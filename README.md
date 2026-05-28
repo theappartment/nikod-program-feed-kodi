@@ -28,11 +28,13 @@ This mirrors the common Kodi repository installer flow.
 
 ## Settings
 
-- `Program feed URL`: authorized plain-text program feed.
-- `Direct channel URL`: optional direct URL, for example a channel page.
+- `Program feed URL`: authorized plain-text program feed. A default feed is preconfigured and can be edited.
+- `Direct channel URL`: optional direct URL, for example a channel page. A default direct channel is preconfigured and can be edited.
 - `Direct channel title`: label for the direct URL item.
 - `User-Agent`: request user agent.
 - `Timeout seconds`: network timeout.
+- `Open addon when Kodi starts`: opens Nikod Program Feed automatically when Kodi starts.
+- `Autostart delay seconds`: delay before opening the addon at Kodi startup.
 
 ## Repository Layout
 
@@ -48,7 +50,7 @@ This mirrors the common Kodi repository installer flow.
 GitHub Releases contain the user-facing install ZIPs:
 
 - `repository.nikod.programfeed-0.1.0.zip`: install this first in Kodi.
-- `plugin.video.nikod.programfeed-0.1.10.zip`: direct addon package, mainly for debugging/manual installs.
+- `plugin.video.nikod.programfeed-0.1.11.zip`: direct addon package, mainly for debugging/manual installs.
 
 ## Build
 
