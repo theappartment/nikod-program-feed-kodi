@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PAGES_URL = "https://theappartment.github.io/nikod-program-feed-kodi/"
+INSTALLER_NAME = "NikodProgramFeed-installer.zip"
 ADDONS = [
     "plugin.video.nikod.programfeed",
     "repository.nikod.programfeed",
@@ -47,15 +49,57 @@ def build_addons_xml() -> str:
     return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<addons>\n" + "\n".join(addon_xml_parts) + "\n</addons>\n"
 
 
+def build_pages_site(repository_zip: Path) -> None:
+    docs_root = ROOT / "docs"
+    if docs_root.exists():
+        shutil.rmtree(docs_root)
+    docs_root.mkdir(parents=True)
+
+    shutil.copy2(ROOT / "addons.xml", docs_root / "addons.xml")
+    shutil.copy2(ROOT / "addons.xml.md5", docs_root / "addons.xml.md5")
+    shutil.copytree(ROOT / "zips", docs_root / "zips")
+    shutil.copy2(repository_zip, docs_root / INSTALLER_NAME)
+    (docs_root / ".nojekyll").write_text("", encoding="utf-8")
+    (docs_root / "index.html").write_text(
+        """<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nikod Program Feed Repository</title>
+  <style>
+    body { background: #050505; color: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 40px; }
+    a { color: #67b7ff; font-size: 20px; }
+    code { background: #151515; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Nikod Program Feed Repository</h1>
+  <p>In Kodi aggiungi questa sorgente file:</p>
+  <p><code>""" + PAGES_URL + """</code></p>
+  <p>Poi installa lo ZIP:</p>
+  <p><a href="./""" + INSTALLER_NAME + """">""" + INSTALLER_NAME + """</a></p>
+  <hr>
+  <p><a href="./addons.xml">addons.xml</a></p>
+</body>
+</html>
+""",
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
     zips_root = ROOT / "zips"
     if zips_root.exists():
         shutil.rmtree(zips_root)
     zips_root.mkdir(parents=True)
 
+    repository_zip = None
     for addon_id in ADDONS:
         version = addon_version(ROOT / addon_id)
         zip_path = zip_addon(addon_id, version)
+        if addon_id.startswith("repository."):
+            repository_zip = zip_path
         print(f"built {zip_path.relative_to(ROOT)}")
 
     addons_xml = build_addons_xml()
@@ -65,6 +109,10 @@ def main() -> None:
     (ROOT / "addons.xml.md5").write_text(checksum, encoding="utf-8")
     print("built addons.xml")
     print("built addons.xml.md5")
+    if repository_zip is None:
+        raise RuntimeError("Missing repository addon ZIP")
+    build_pages_site(repository_zip)
+    print("built docs GitHub Pages site")
 
 
 if __name__ == "__main__":
