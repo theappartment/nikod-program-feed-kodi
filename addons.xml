@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addons>
+<addon id="plugin.video.nikod.programfeed" name="Nikod Program Feed" version="0.1.10" provider-name="Nikod">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="it_IT">Legge un feed programmi testuale autorizzato e mostra gli eventi come elementi Kodi.</summary>
+    <platform>all</platform>
+  </extension>
+</addon>
+<addon id="repository.nikod.programfeed" name="Nikod Program Feed Repository" version="0.1.0" provider-name="Nikod">
+  <extension point="xbmc.addon.repository" name="Nikod Program Feed Repository">
+    <dir>
+      <info compressed="false">https://raw.githubusercontent.com/theappartment/nikod-program-feed-kodi/main/addons.xml</info>
+      <checksum>https://raw.githubusercontent.com/theappartment/nikod-program-feed-kodi/main/addons.xml.md5</checksum>
+      <datadir zip="true">https://raw.githubusercontent.com/theappartment/nikod-program-feed-kodi/main/zips/</datadir>
+    </dir>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Repository for Nikod Program Feed.</summary>
+    <summary lang="it_IT">Repository per Nikod Program Feed.</summary>
+    <description lang="en_GB">Install and update the Nikod Program Feed Kodi addon.</description>
+    <description lang="it_IT">Installa e aggiorna l'addon Kodi Nikod Program Feed.</description>
+    <platform>all</platform>
+  </extension>
+</addon>
+</addons>

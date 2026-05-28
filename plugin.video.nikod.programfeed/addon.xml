@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.video.nikod.programfeed" name="Nikod Program Feed" version="0.1.10" provider-name="Nikod">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="it_IT">Legge un feed programmi testuale autorizzato e mostra gli eventi come elementi Kodi.</summary>
+    <platform>all</platform>
+  </extension>
+</addon>

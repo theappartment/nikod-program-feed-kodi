@@ -1,0 +1,536 @@
+import re
+import os
+import ssl
+import sys
+import urllib.error
+import urllib.request
+import urllib.parse
+import socket
+
+import xbmc
+import xbmcaddon
+import xbmcgui
+import xbmcplugin
+
+
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+)
+
+
+def setting(addon, key, fallback=""):
+    value = addon.getSetting(key)
+    return value if value is not None and value != "" else fallback
+
+
+def first_setting(addon, keys, fallback=""):
+    for key in keys:
+        value = setting(addon, key)
+        if value:
+            return value
+    return fallback
+
+
+def normalize_url(value):
+    url = (value or "").replace("\\/", "/").strip()
+    if not url:
+        return ""
+    if "://" not in url:
+        url = "https://" + url
+
+    parsed = urllib.parse.urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    return url
+
+
+def verified_ssl_context():
+    cafile = os.environ.get("SSL_CERT_FILE") or os.environ.get("REQUESTS_CA_BUNDLE")
+    if cafile and os.path.exists(cafile):
+        return ssl.create_default_context(cafile=cafile)
+    return ssl.create_default_context()
+
+
+def is_ssl_verify_error(exc):
+    reason = getattr(exc, "reason", exc)
+    return isinstance(reason, ssl.SSLCertVerificationError) or isinstance(exc, ssl.SSLCertVerificationError)
+
+
+def fetch_text(url, user_agent, timeout, ssl_context=None):
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    with urllib.request.urlopen(request, timeout=timeout, context=ssl_context) as response:
+        data = response.read()
+    for encoding in ("utf-8", "latin-1"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def www_variant(url):
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.hostname or ""
+    if not host or host.startswith("www."):
+        return ""
+
+    netloc = "www." + host
+    if parsed.port:
+        netloc += ":{0}".format(parsed.port)
+    return urllib.parse.urlunparse(
+        (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    )
+
+
+def swap_scheme(url):
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "https":
+        scheme = "http"
+    elif parsed.scheme == "http":
+        scheme = "https"
+    else:
+        return ""
+    return urllib.parse.urlunparse(
+        (scheme, parsed.netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    )
+
+
+def candidate_feed_urls(url):
+    candidates = []
+    for candidate in (url, www_variant(url), swap_scheme(url), www_variant(swap_scheme(url))):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def should_try_next_feed_url(exc):
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in (403, 404)
+    reason = getattr(exc, "reason", exc)
+    return isinstance(reason, socket.gaierror)
+
+
+def fetch_text_with_dns_fallback(url, user_agent, timeout):
+    context = verified_ssl_context()
+    last_error = None
+    for candidate in candidate_feed_urls(url):
+        try:
+            if candidate != url:
+                xbmc.log("Nikod Program Feed URL fallback: {0}".format(candidate))
+            return fetch_text(candidate, user_agent, timeout, context)
+        except urllib.error.URLError as exc:
+            last_error = exc
+            if is_ssl_verify_error(exc):
+                xbmc.log(
+                    "Nikod Program Feed SSL verification fallback for feed host: {0}".format(
+                        urllib.parse.urlparse(candidate).hostname or candidate
+                    )
+                )
+                try:
+                    return fetch_text(candidate, user_agent, timeout, ssl._create_unverified_context())
+                except urllib.error.URLError as fallback_exc:
+                    last_error = fallback_exc
+                    if should_try_next_feed_url(fallback_exc):
+                        continue
+                    raise
+            if should_try_next_feed_url(exc):
+                continue
+            raise
+
+    if last_error:
+        raise last_error
+    raise urllib.error.URLError("No candidate feed URLs were available")
+
+
+def media_content_type(url, user_agent, timeout):
+    lower = url.lower()
+    if ".m3u8" in lower:
+        return "application/vnd.apple.mpegurl"
+    if any(token in lower for token in (".mp4", ".mov", ".m4v")):
+        return "video/mp4"
+    if ".mpd" in lower:
+        return "application/dash+xml"
+
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent}, method="HEAD")
+    context = verified_ssl_context()
+    try:
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+            content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+    except urllib.error.URLError as exc:
+        if is_ssl_verify_error(exc):
+            xbmc.log("Nikod Program Feed media probe SSL verification fallback: {0}".format(url))
+            try:
+                with urllib.request.urlopen(request, timeout=timeout, context=ssl._create_unverified_context()) as response:
+                    content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            except Exception as fallback_exc:
+                xbmc.log("Nikod Program Feed media probe failed: {0}".format(fallback_exc))
+                return ""
+        else:
+            xbmc.log("Nikod Program Feed media probe failed: {0}".format(exc))
+            return ""
+    except Exception as exc:
+        xbmc.log("Nikod Program Feed media probe failed: {0}".format(exc))
+        return ""
+
+    xbmc.log("Nikod Program Feed media probe content-type: {0}".format(content_type or "unknown"))
+    return content_type
+
+
+def describe_url_error(url, exc):
+    host = urllib.parse.urlparse(url).hostname or ""
+    if isinstance(exc, urllib.error.HTTPError):
+        return "HTTP error {0} loading feed: {1}".format(exc.code, host or url)
+    reason = getattr(exc, "reason", exc)
+    if isinstance(reason, socket.gaierror):
+        return "Host not reachable: {0}. DNS lookup failed from the app runtime.".format(host or url)
+    if isinstance(reason, TimeoutError):
+        return "Timed out loading feed: {0}".format(host or url)
+    return str(exc)
+
+
+def clean_markup(value):
+    value = re.sub(r"\[[^\]]+\]", "", value)
+    value = re.sub(r"<[^>]+>", "", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+WEEKDAYS = {
+    "MONDAY",
+    "TUESDAY",
+    "WEDNESDAY",
+    "THURSDAY",
+    "FRIDAY",
+    "SATURDAY",
+    "SUNDAY",
+}
+
+
+def normalized_language(value):
+    value = clean_markup(value).upper()
+    value = value.replace("&", ",")
+    parts = [part.strip().title() for part in value.split(",") if part.strip()]
+    return " / ".join(parts) if parts else "Other"
+
+
+def channel_code_from_url(url):
+    parsed = urllib.parse.urlparse(url)
+    match = re.search(r"/([^/]+)\.php$", parsed.path, re.IGNORECASE)
+    return match.group(1).upper() if match else ""
+
+
+def parse_feed(text):
+    current_day = "Unscheduled"
+    channel_languages = {}
+    programs = []
+
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        raw = clean_markup(line)
+        if not raw or raw.startswith("#"):
+            continue
+
+        upper = raw.upper()
+        if upper in WEEKDAYS:
+            current_day = upper.title()
+            continue
+
+        channel_match = re.match(r"^([A-Z]{2,4}\d+)\s+(.+)$", raw, re.IGNORECASE)
+        if channel_match and "://" not in raw:
+            channel_languages[channel_match.group(1).upper()] = normalized_language(channel_match.group(2))
+            continue
+
+        program = parse_program_line(raw, len(programs) + 1, current_day, channel_languages)
+        if program:
+            programs.append(program)
+
+    return programs
+
+
+def parse_program_line(line, index, day, channel_languages):
+    raw = clean_markup(line)
+    if not raw or raw.startswith("#"):
+        return None
+
+    match = re.match(r"^(\d{1,2}[:.]\d{2})\s+(.+?)(?:\s*[|]\s*(https?://\S+))?$", raw)
+    if match:
+        time_text = match.group(1).replace(".", ":")
+        title = match.group(2).strip()
+        stream_url = (match.group(3) or "").strip()
+    else:
+        parts = [part.strip() for part in re.split(r"\s*[|;\t]\s*", raw) if part.strip()]
+        if len(parts) >= 2 and re.match(r"^\d{1,2}[:.]\d{2}$", parts[0]):
+            time_text = parts[0].replace(".", ":")
+            title = parts[1]
+            stream_url = next((part for part in parts[2:] if part.startswith(("http://", "https://"))), "")
+        else:
+            return None
+
+    channel = channel_code_from_url(stream_url)
+    language = channel_languages.get(channel, "Other")
+    detail_parts = []
+    if day:
+        detail_parts.append(day)
+    if channel:
+        detail_parts.append(channel)
+    if language:
+        detail_parts.append(language)
+    if stream_url:
+        detail_parts.append(stream_url)
+
+    label = " - ".join([part for part in (time_text, title) if part])
+    return {
+        "index": index,
+        "label": label,
+        "title": title or label,
+        "time": time_text,
+        "day": day,
+        "channel": channel,
+        "language": language,
+        "stream_url": stream_url,
+        "detail": "\n".join(detail_parts),
+        "raw": raw,
+    }
+
+
+def add_notice(handle, title, plot):
+    item = xbmcgui.ListItem(label=title)
+    item.setInfo("video", {"title": title, "plot": plot, "genre": "Program Feed"})
+    item.setProperty("IsPlayable", "false")
+    xbmcplugin.addDirectoryItem(handle, sys.argv[0], item, isFolder=False)
+
+
+def plugin_url(params):
+    query = urllib.parse.urlencode(params)
+    return sys.argv[0] + ("?" + query if query else "")
+
+
+def query_params():
+    if len(sys.argv) < 3:
+        return {}
+    query = sys.argv[2] or ""
+    if query.startswith("?"):
+        query = query[1:]
+    return {key: values[0] for key, values in urllib.parse.parse_qs(query).items()}
+
+
+def selected_program_index(params):
+    value = params.get("program", "") or params.get("play", "")
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def selected_play_index(params):
+    value = params.get("play", "")
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def add_folder(handle, label, params, plot=""):
+    item = xbmcgui.ListItem(label=label)
+    item.setInfo("video", {"title": label, "plot": plot, "genre": "Program Feed"})
+    item.setProperty("IsPlayable", "false")
+    xbmcplugin.addDirectoryItem(handle, plugin_url(params), item, isFolder=True)
+
+
+def add_program(handle, program):
+    item = xbmcgui.ListItem(label=program["label"])
+    item.setInfo(
+        "video",
+        {
+            "title": program["title"],
+            "plot": program["detail"] or program["raw"],
+            "genre": "Program Feed",
+            "aired": program["time"],
+            "studio": program["channel"],
+        },
+    )
+    item.setProperty("IsPlayable", "true" if program["stream_url"] else "false")
+    url = plugin_url({"play": program["index"]}) if program["stream_url"] else plugin_url({"program": program["index"]})
+    xbmcplugin.addDirectoryItem(handle, url, item, isFolder=False)
+
+
+def add_direct_stream(handle, title, direct_url):
+    item = xbmcgui.ListItem(label=title)
+    item.setInfo(
+        "video",
+        {
+            "title": title,
+            "plot": direct_url,
+            "genre": "Program Feed",
+        },
+    )
+    item.setProperty("IsPlayable", "true")
+    xbmcplugin.addDirectoryItem(handle, plugin_url({"direct": "1"}), item, isFolder=False)
+
+
+def resolve_direct_stream(handle, title, direct_url, user_agent, timeout):
+    if not direct_url:
+        add_notice(handle, "Nothing to play", "Set Direct channel URL in addon settings.")
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    mime_type = media_content_type(direct_url, user_agent, timeout)
+    item = xbmcgui.ListItem(label=title, path=direct_url)
+    item.setPath(direct_url)
+    if mime_type:
+        item.setMimeType(mime_type)
+    item.setProperty("IsPlayable", "true")
+    item.setInfo(
+        "video",
+        {
+            "title": title,
+            "plot": direct_url,
+            "genre": "Program Feed",
+        },
+    )
+    xbmcplugin.setResolvedUrl(handle, True, item)
+
+
+def resolve_program(handle, program, user_agent, timeout):
+    if not program or not program["stream_url"]:
+        add_notice(handle, "Nothing to play", "This program row does not include a playable URL.")
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    mime_type = media_content_type(program["stream_url"], user_agent, timeout)
+
+    item = xbmcgui.ListItem(label=program["title"], path=program["stream_url"])
+    item.setPath(program["stream_url"])
+    if mime_type:
+        item.setMimeType(mime_type)
+    item.setProperty("IsPlayable", "true")
+    item.setInfo(
+        "video",
+        {
+            "title": program["title"],
+            "plot": program["detail"] or program["raw"],
+            "genre": "Program Feed",
+            "aired": program["time"],
+            "studio": program["channel"],
+        },
+    )
+    xbmcplugin.setResolvedUrl(handle, True, item)
+
+
+def main():
+    addon = xbmcaddon.Addon()
+    handle = int(sys.argv[1])
+    feed_url = normalize_url(first_setting(addon, ("feed_url", "feed.url")))
+    direct_url = normalize_url(first_setting(addon, ("direct_stream_url", "direct.url", "direct_url")))
+    direct_title = first_setting(addon, ("direct_stream_title", "direct.title"), "Canale diretto")
+    user_agent = first_setting(addon, ("feed_user_agent", "feed.user_agent"), DEFAULT_USER_AGENT)
+    params = query_params()
+
+    try:
+        timeout = max(1, int(first_setting(addon, ("feed_timeout", "feed.timeout"), "12")))
+    except ValueError:
+        timeout = 12
+
+    xbmc.log("Nikod Program Feed starting")
+    xbmc.log("Nikod Program Feed URL: {0}".format(feed_url or "<empty>"))
+    xbmc.log("Nikod Program Feed direct URL: {0}".format(direct_url or "<empty>"))
+    xbmcplugin.setContent(handle, "videos")
+
+    if params.get("direct") == "1":
+        resolve_direct_stream(handle, direct_title, direct_url, user_agent, timeout)
+        return
+
+    if not feed_url and direct_url:
+        add_direct_stream(handle, direct_title, direct_url)
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    if not feed_url:
+        add_notice(
+            handle,
+            "Configure a program feed URL",
+            "Open addon settings and set Program feed URL or Direct channel URL.",
+        )
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    try:
+        text = fetch_text_with_dns_fallback(feed_url, user_agent, timeout)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        add_notice(handle, "Could not load program feed", describe_url_error(feed_url, exc))
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    programs = parse_feed(text)
+
+    if not programs:
+        add_notice(handle, "No programs found", "The feed loaded, but no supported text rows were found.")
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    play_index = selected_play_index(params)
+    if play_index is not None:
+        resolve_program(
+            handle,
+            next((item for item in programs if item["index"] == play_index), None),
+            user_agent,
+            timeout,
+        )
+        return
+
+    selected_index = selected_program_index(params)
+    if selected_index is not None:
+        program = next((item for item in programs if item["index"] == selected_index), None)
+        if not program:
+            add_notice(handle, "Program not found", "The selected program is no longer present in the feed.")
+            xbmcplugin.endOfDirectory(handle)
+            return
+
+        item = xbmcgui.ListItem(label=program["title"])
+        item.setInfo(
+            "video",
+            {
+                "title": program["title"],
+                "plot": program["detail"] or program["raw"],
+                "genre": "Program Feed",
+                "aired": program["time"],
+            },
+        )
+        item.setProperty("IsPlayable", "false")
+        xbmcplugin.addDirectoryItem(handle, sys.argv[0], item, isFolder=False)
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    selected_day = params.get("day", "")
+    selected_language = params.get("language", "")
+
+    if not selected_day:
+        if direct_url:
+            add_direct_stream(handle, direct_title, direct_url)
+        for day in sorted({program["day"] for program in programs}):
+            count = sum(1 for program in programs if program["day"] == day)
+            add_folder(handle, day, {"day": day}, "{0} programs".format(count))
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    day_programs = [program for program in programs if program["day"] == selected_day]
+    if not selected_language:
+        languages = sorted({program["language"] for program in day_programs})
+        add_folder(handle, "All languages", {"day": selected_day, "language": "__all__"}, "{0} programs".format(len(day_programs)))
+        for language in languages:
+            count = sum(1 for program in day_programs if program["language"] == language)
+            add_folder(handle, language, {"day": selected_day, "language": language}, "{0} programs".format(count))
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    visible_programs = day_programs
+    if selected_language != "__all__":
+        visible_programs = [program for program in day_programs if program["language"] == selected_language]
+
+    for program in visible_programs:
+        add_program(handle, program)
+
+    xbmcplugin.endOfDirectory(handle)
+
+
+if __name__ == "__main__":
+    main()
