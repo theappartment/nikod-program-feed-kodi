@@ -74,9 +74,14 @@ def build_pages_site(repository_zip: Path) -> None:
       min-height: 100%;
       background: #000;
     }
+    .kodi-source-link {
+      display: none;
+    }
   </style>
 </head>
-<body></body>
+<body>
+  <a class="kodi-source-link" href="./""" + INSTALLER_NAME + """">""" + INSTALLER_NAME + """</a>
+</body>
 </html>
 """,
         encoding="utf-8",
