@@ -15,9 +15,9 @@
 <addon id="repository.nikod.programfeed" name="Nikod Program Feed Repository" version="0.1.0" provider-name="Nikod">
   <extension point="xbmc.addon.repository" name="Nikod Program Feed Repository">
     <dir>
-      <info compressed="false">https://theappartment.github.io/nikod-program-feed-kodi/addons.xml</info>
-      <checksum>https://theappartment.github.io/nikod-program-feed-kodi/addons.xml.md5</checksum>
-      <datadir zip="true">https://theappartment.github.io/nikod-program-feed-kodi/zips/</datadir>
+      <info compressed="false">https://theappartment.github.io/nikod-pf/addons.xml</info>
+      <checksum>https://theappartment.github.io/nikod-pf/addons.xml.md5</checksum>
+      <datadir zip="true">https://theappartment.github.io/nikod-pf/zips/</datadir>
     </dir>
   </extension>
   <extension point="xbmc.addon.metadata">

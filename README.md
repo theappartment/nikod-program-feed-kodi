@@ -10,7 +10,7 @@ This mirrors the common Kodi repository installer flow.
 
 1. In Kodi, open `Settings > File manager > Add source`.
 2. Add:
-   `https://theappartment.github.io/nikod-program-feed-kodi/`
+   `https://theappartment.github.io/nikod-pf/`
 3. Name it `Nikod Program Feed repo`.
 4. Open `Add-ons > Install from zip file > Nikod Program Feed repo`.
 5. Select `NikodProgramFeed-installer.zip`.
@@ -20,7 +20,7 @@ This mirrors the common Kodi repository installer flow.
 ## Direct Install ZIP
 
 1. Download the repository ZIP:
-   `https://github.com/theappartment/nikod-program-feed-kodi/releases/download/v0.1.10/repository.nikod.programfeed-0.1.0.zip`
+   `https://github.com/theappartment/nikod-pf/releases/download/v0.1.10/repository.nikod.programfeed-0.1.0.zip`
 2. In Kodi, open `Settings > Add-ons > Install from zip file`.
 3. Select the downloaded ZIP.
 4. Open `Install from repository > Nikod Program Feed Repository > Video add-ons`.

@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES_URL = "https://theappartment.github.io/nikod-program-feed-kodi/"
+PAGES_URL = "https://theappartment.github.io/nikod-pf/"
 INSTALLER_NAME = "NikodProgramFeed-installer.zip"
 ADDONS = [
     "plugin.video.nikod.programfeed",
@@ -62,26 +62,21 @@ def build_pages_site(repository_zip: Path) -> None:
     (docs_root / ".nojekyll").write_text("", encoding="utf-8")
     (docs_root / "index.html").write_text(
         """<!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Nikod Program Feed Repository</title>
+  <title></title>
   <style>
-    body { background: #050505; color: #f4f4f4; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 40px; }
-    a { color: #67b7ff; font-size: 20px; }
-    code { background: #151515; padding: 2px 6px; border-radius: 4px; }
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: #000;
+    }
   </style>
 </head>
-<body>
-  <h1>Nikod Program Feed Repository</h1>
-  <p>In Kodi aggiungi questa sorgente file:</p>
-  <p><code>""" + PAGES_URL + """</code></p>
-  <p>Poi installa lo ZIP:</p>
-  <p><a href="./""" + INSTALLER_NAME + """">""" + INSTALLER_NAME + """</a></p>
-  <hr>
-  <p><a href="./addons.xml">addons.xml</a></p>
-</body>
+<body></body>
 </html>
 """,
         encoding="utf-8",
