@@ -61,32 +61,46 @@ def build_pages_site(repository_zip: Path) -> None:
     shutil.copy2(repository_zip, docs_root / INSTALLER_NAME)
     (docs_root / ".nojekyll").write_text("", encoding="utf-8")
     (docs_root / "index.html").write_text(
-        f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title></title>
-  <style>
-    html,
-    body {{
-      margin: 0;
-      min-height: 100%;
-      background: #000;
-    }}
-    .kodi-source-link {{
-      color: #000;
-      background: #000;
-      font-size: 1px;
-      line-height: 1px;
-    }}
-  </style>
-</head>
-<body>
-  <a class="kodi-source-link" href="{INSTALLER_NAME}">{INSTALLER_NAME}</a>
-  <a class="kodi-source-link" href="zips/repository.nikod.programfeed/repository.nikod.programfeed-0.1.0.zip">repository.nikod.programfeed-0.1.0.zip</a>
-</body>
-</html>
+        f"""<html>
+ <head>
+  <title>Index of /nikod-pf</title>
+ </head>
+ <body>
+<h1>Index of /nikod-pf</h1>
+  <table>
+   <tr>
+       <th>
+           <a href="?C=N;O=D">Name</a>
+       </th>
+       <th>
+           <a href="?C=M;O=A">Last modified</a>
+       </th>
+       <th>
+           <a href="?C=S;O=A">Size</a></th>
+       <th>
+           <a href="?C=D;O=A">Description</a>
+       </th>
+   </tr>
+   <tr>
+       <th colspan="5"><hr></th></tr>
+    <tr>
+        <td>
+            <a href="/">Parent Directory</a>
+        </td>
+        <td>&nbsp;</td>
+        <td align="right">  - </td><td>&nbsp;</td>
+    </tr>
+  <tr>
+        <td>
+            <a href="{INSTALLER_NAME}">{INSTALLER_NAME}</a>
+        </td>
+        <td align="right">2026-05-28  </td>
+        <td align="right"> 570 </td><td>&nbsp;</td>
+  </tr>
+   <tr>
+       <th colspan="5"><hr></th>
+   </tr>
+</table>
 """,
         encoding="utf-8",
     )
