@@ -49,7 +49,7 @@ def build_addons_xml() -> str:
     return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<addons>\n" + "\n".join(addon_xml_parts) + "\n</addons>\n"
 
 
-def build_pages_site(repository_zip: Path) -> None:
+def build_pages_site(plugin_zip: Path, repository_zip: Path) -> None:
     docs_root = ROOT / "docs"
     if docs_root.exists():
         shutil.rmtree(docs_root)
@@ -58,7 +58,7 @@ def build_pages_site(repository_zip: Path) -> None:
     shutil.copy2(ROOT / "addons.xml", docs_root / "addons.xml")
     shutil.copy2(ROOT / "addons.xml.md5", docs_root / "addons.xml.md5")
     shutil.copytree(ROOT / "zips", docs_root / "zips")
-    shutil.copy2(repository_zip, docs_root / INSTALLER_NAME)
+    shutil.copy2(plugin_zip, docs_root / INSTALLER_NAME)
     (docs_root / ".nojekyll").write_text("", encoding="utf-8")
     (docs_root / "index.html").write_text(
         f"""<html>
@@ -95,6 +95,13 @@ def build_pages_site(repository_zip: Path) -> None:
             <a href="{INSTALLER_NAME}">{INSTALLER_NAME}</a>
         </td>
         <td align="right">2026-05-28  </td>
+        <td align="right"> 6K </td><td>&nbsp;</td>
+  </tr>
+  <tr>
+        <td>
+            <a href="zips/repository.nikod.programfeed/repository.nikod.programfeed-0.1.0.zip">repository.nikod.programfeed-0.1.0.zip</a>
+        </td>
+        <td align="right">2026-05-28  </td>
         <td align="right"> 570 </td><td>&nbsp;</td>
   </tr>
    <tr>
@@ -112,10 +119,13 @@ def main() -> None:
         shutil.rmtree(zips_root)
     zips_root.mkdir(parents=True)
 
+    plugin_zip = None
     repository_zip = None
     for addon_id in ADDONS:
         version = addon_version(ROOT / addon_id)
         zip_path = zip_addon(addon_id, version)
+        if addon_id == "plugin.video.nikod.programfeed":
+            plugin_zip = zip_path
         if addon_id.startswith("repository."):
             repository_zip = zip_path
         print(f"built {zip_path.relative_to(ROOT)}")
@@ -127,9 +137,11 @@ def main() -> None:
     (ROOT / "addons.xml.md5").write_text(checksum, encoding="utf-8")
     print("built addons.xml")
     print("built addons.xml.md5")
+    if plugin_zip is None:
+        raise RuntimeError("Missing plugin addon ZIP")
     if repository_zip is None:
         raise RuntimeError("Missing repository addon ZIP")
-    build_pages_site(repository_zip)
+    build_pages_site(plugin_zip, repository_zip)
     print("built docs GitHub Pages site")
 
 

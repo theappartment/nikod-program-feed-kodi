@@ -14,8 +14,9 @@ This mirrors the common Kodi repository installer flow.
 3. Name it `Nikod Program Feed repo`.
 4. Open `Add-ons > Install from zip file > Nikod Program Feed repo`.
 5. Select `NikodProgramFeed-installer.zip`.
-6. Open `Install from repository > Nikod Program Feed Repository > Video add-ons`.
-7. Install `Nikod Program Feed`.
+6. Open `Add-ons > Video add-ons > Nikod Program Feed`.
+
+Optional: install `repository.nikod.programfeed-0.1.0.zip` from the same source to enable repository-style updates.
 
 ## Direct Install ZIP
 
@@ -49,7 +50,8 @@ This mirrors the common Kodi repository installer flow.
 
 GitHub Releases contain the user-facing install ZIPs:
 
-- `repository.nikod.programfeed-0.1.0.zip`: install this first in Kodi.
+- `NikodProgramFeed-installer.zip`: direct install package for the playable video addon.
+- `repository.nikod.programfeed-0.1.0.zip`: optional repository package for update/distribution metadata.
 - `plugin.video.nikod.programfeed-0.1.11.zip`: direct addon package, mainly for debugging/manual installs.
 
 ## Build
