@@ -61,7 +61,7 @@ def build_pages_site(repository_zip: Path) -> None:
     shutil.copy2(repository_zip, docs_root / INSTALLER_NAME)
     (docs_root / ".nojekyll").write_text("", encoding="utf-8")
     (docs_root / "index.html").write_text(
-        """<!doctype html>
+        f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -69,18 +69,22 @@ def build_pages_site(repository_zip: Path) -> None:
   <title></title>
   <style>
     html,
-    body {
+    body {{
       margin: 0;
       min-height: 100%;
       background: #000;
-    }
-    .kodi-source-link {
-      display: none;
-    }
+    }}
+    .kodi-source-link {{
+      color: #000;
+      background: #000;
+      font-size: 1px;
+      line-height: 1px;
+    }}
   </style>
 </head>
 <body>
-  <a class="kodi-source-link" href="./""" + INSTALLER_NAME + """">""" + INSTALLER_NAME + """</a>
+  <a class="kodi-source-link" href="{INSTALLER_NAME}">{INSTALLER_NAME}</a>
+  <a class="kodi-source-link" href="zips/repository.nikod.programfeed/repository.nikod.programfeed-0.1.0.zip">repository.nikod.programfeed-0.1.0.zip</a>
 </body>
 </html>
 """,
