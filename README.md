@@ -36,6 +36,7 @@ Optional: install `repository.nikod.programfeed-0.1.0.zip` from the same source 
 - `Direct channel title`: label for the direct URL item.
 - `User-Agent`: request user agent.
 - `Timeout seconds`: network timeout.
+- `Open web player externally when needed`: if Kodi cannot resolve a direct media stream from a web player page, try opening that page with the platform browser/app.
 - `Open addon when Kodi starts`: opens Nikod Program Feed automatically when Kodi starts.
 - `Autostart delay seconds`: delay before opening the addon at Kodi startup.
 
@@ -55,7 +56,7 @@ GitHub Releases contain the user-facing install ZIPs:
 - `NikodProgramFeed-installer.zip`: direct install package for the playable video addon.
 - `NikodProgramFeed-legacy-kodi18.zip`: legacy package for Kodi 18/Leia Python 2 runtimes.
 - `repository.nikod.programfeed-0.1.0.zip`: optional repository package for update/distribution metadata.
-- `plugin.video.nikod.programfeed-0.1.18.zip`: direct addon package, mainly for debugging/manual installs.
+- `plugin.video.nikod.programfeed-0.1.19.zip`: direct addon package, mainly for debugging/manual installs.
 
 ## Build
 

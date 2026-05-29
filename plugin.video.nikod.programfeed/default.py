@@ -48,6 +48,11 @@ def first_setting(addon, keys, fallback=""):
     return fallback
 
 
+def bool_setting(addon, keys, fallback=True):
+    value = first_setting(addon, keys, "true" if fallback else "false")
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
 def normalize_url(value):
     url = (value or "").replace("\\/", "/").strip()
     if not url:
@@ -443,6 +448,34 @@ def notify(title, message):
         xbmc.log("{0}: {1}".format(title, message))
 
 
+def platform_builtin_url(url):
+    safe_url = (url or "").replace('"', "%22")
+    if xbmc.getCondVisibility("System.Platform.Android"):
+        return "StartAndroidActivity(,android.intent.action.VIEW,,{0})".format(safe_url)
+    if xbmc.getCondVisibility("System.Platform.OSX"):
+        return 'System.Exec(open "{0}")'.format(safe_url)
+    if xbmc.getCondVisibility("System.Platform.Windows"):
+        return 'System.Exec(rundll32 url.dll,FileProtocolHandler "{0}")'.format(safe_url)
+    if xbmc.getCondVisibility("System.Platform.Linux"):
+        return 'System.Exec(xdg-open "{0}")'.format(safe_url)
+    return ""
+
+
+def open_external_url(url):
+    builtin = platform_builtin_url(url)
+    if builtin:
+        xbmc.log("Nikod Program Feed opening external web player: {0}".format(url))
+        xbmc.executebuiltin(builtin)
+        return True
+
+    try:
+        xbmcgui.Dialog().ok("Nikod Program Feed", "Open this URL in a browser:", url)
+    except Exception:
+        pass
+    xbmc.log("Nikod Program Feed external web player unsupported on this Kodi platform: {0}".format(url))
+    return False
+
+
 def plugin_url(params):
     query = url_encode.urlencode(params)
     return sys.argv[0] + ("?" + query if query else "")
@@ -511,7 +544,25 @@ def add_direct_stream(handle, title, direct_url):
     xbmcplugin.addDirectoryItem(handle, plugin_url({"direct": "1"}), item, isFolder=False)
 
 
-def resolve_direct_stream(handle, title, direct_url, user_agent, timeout):
+def handle_unresolved_web_player(handle, title, page_url, external_open_enabled):
+    if external_open_enabled and page_url:
+        if open_external_url(page_url):
+            notify("Nikod Program Feed", "Opening web player externally.")
+            xbmcplugin.setResolvedUrl(handle, False, xbmcgui.ListItem(label=title))
+            return
+        notify("Nikod Program Feed", "External web player is not supported here.")
+    else:
+        notify("Nikod Program Feed", "No direct video stream found for Kodi.")
+
+    add_notice(
+        handle,
+        "No direct video stream found",
+        "This URL opens a web player page, but no direct video stream was found for Kodi.",
+    )
+    xbmcplugin.setResolvedUrl(handle, False, xbmcgui.ListItem(label=title))
+
+
+def resolve_direct_stream(handle, title, direct_url, user_agent, timeout, external_open_enabled):
     if not direct_url:
         add_notice(handle, "Nothing to play", "Set Direct channel URL in addon settings.")
         xbmcplugin.endOfDirectory(handle)
@@ -519,13 +570,7 @@ def resolve_direct_stream(handle, title, direct_url, user_agent, timeout):
 
     playable_url = resolve_media_url(direct_url, user_agent, timeout)
     if not playable_url:
-        notify("Nikod Program Feed", "No direct video stream found for Kodi.")
-        add_notice(
-            handle,
-            "No direct video stream found",
-            "This URL opens a web player page, but no direct video stream was found for Kodi.",
-        )
-        xbmcplugin.setResolvedUrl(handle, False, xbmcgui.ListItem(label=title))
+        handle_unresolved_web_player(handle, title, direct_url, external_open_enabled)
         return
 
     mime_type = media_content_type(playable_url.split("|", 1)[0], user_agent, timeout)
@@ -545,7 +590,7 @@ def resolve_direct_stream(handle, title, direct_url, user_agent, timeout):
     xbmcplugin.setResolvedUrl(handle, True, item)
 
 
-def resolve_program(handle, program, user_agent, timeout):
+def resolve_program(handle, program, user_agent, timeout, external_open_enabled):
     if not program or not program["stream_url"]:
         add_notice(handle, "Nothing to play", "This program row does not include a playable URL.")
         xbmcplugin.endOfDirectory(handle)
@@ -553,13 +598,7 @@ def resolve_program(handle, program, user_agent, timeout):
 
     playable_url = resolve_media_url(program["stream_url"], user_agent, timeout)
     if not playable_url:
-        notify("Nikod Program Feed", "No direct video stream found for Kodi.")
-        add_notice(
-            handle,
-            "No direct video stream found",
-            "This event opens a web player page, but no direct video stream was found for Kodi.",
-        )
-        xbmcplugin.setResolvedUrl(handle, False, xbmcgui.ListItem(label=program["title"]))
+        handle_unresolved_web_player(handle, program["title"], program["stream_url"], external_open_enabled)
         return
 
     mime_type = media_content_type(playable_url.split("|", 1)[0], user_agent, timeout)
@@ -589,6 +628,7 @@ def main():
     direct_url = normalize_url(first_setting(addon, ("direct_stream_url", "direct.url", "direct_url"), DEFAULT_DIRECT_STREAM_URL))
     direct_title = first_setting(addon, ("direct_stream_title", "direct.title"), DEFAULT_DIRECT_STREAM_TITLE)
     user_agent = first_setting(addon, ("feed_user_agent", "feed.user_agent"), DEFAULT_USER_AGENT)
+    external_open_enabled = bool_setting(addon, ("external_open_enabled", "external.open_enabled"), True)
     params = query_params()
 
     try:
@@ -599,10 +639,11 @@ def main():
     xbmc.log("Nikod Program Feed starting")
     xbmc.log("Nikod Program Feed URL: {0}".format(feed_url or "<empty>"))
     xbmc.log("Nikod Program Feed direct URL: {0}".format(direct_url or "<empty>"))
+    xbmc.log("Nikod Program Feed external web player fallback: {0}".format(external_open_enabled))
     xbmcplugin.setContent(handle, "videos")
 
     if params.get("direct") == "1":
-        resolve_direct_stream(handle, direct_title, direct_url, user_agent, timeout)
+        resolve_direct_stream(handle, direct_title, direct_url, user_agent, timeout, external_open_enabled)
         return
 
     if not feed_url and direct_url:
@@ -640,6 +681,7 @@ def main():
             next((item for item in programs if item["index"] == play_index), None),
             user_agent,
             timeout,
+            external_open_enabled,
         )
         return
 
