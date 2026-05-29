@@ -448,6 +448,24 @@ def notify(title, message):
         xbmc.log("{0}: {1}".format(title, message))
 
 
+def show_web_player_url(url, android_hint=False):
+    message = url
+    if android_hint:
+        message = (
+            "Chromecast / Google TV needs a browser or web player app installed to open this page.\n\n"
+            "If Android says no app can open it, install a browser such as TV Bro or Downloader, "
+            "or open this URL on another device:\n\n{0}"
+        ).format(url)
+
+    try:
+        if hasattr(xbmcgui.Dialog(), "textviewer"):
+            xbmcgui.Dialog().textviewer("Nikod Program Feed", message)
+        else:
+            xbmcgui.Dialog().ok("Nikod Program Feed", message)
+    except Exception:
+        xbmc.log("Nikod Program Feed web player URL: {0}".format(url))
+
+
 def platform_builtin_url(url):
     safe_url = (url or "").replace('"', "%22")
     if xbmc.getCondVisibility("System.Platform.Android"):
@@ -465,13 +483,12 @@ def open_external_url(url):
     builtin = platform_builtin_url(url)
     if builtin:
         xbmc.log("Nikod Program Feed opening external web player: {0}".format(url))
+        if xbmc.getCondVisibility("System.Platform.Android"):
+            show_web_player_url(url, android_hint=True)
         xbmc.executebuiltin(builtin)
         return True
 
-    try:
-        xbmcgui.Dialog().ok("Nikod Program Feed", "Open this URL in a browser:", url)
-    except Exception:
-        pass
+    show_web_player_url(url)
     xbmc.log("Nikod Program Feed external web player unsupported on this Kodi platform: {0}".format(url))
     return False
 
