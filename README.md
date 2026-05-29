@@ -13,8 +13,10 @@ This mirrors the common Kodi repository installer flow.
    `https://theappartment.github.io/nikod-pf/`
 3. Name it `Nikod Program Feed repo`.
 4. Open `Add-ons > Install from zip file > Nikod Program Feed repo`.
-5. Select `NikodProgramFeed-installer.zip`.
+5. Select `NikodProgramFeed-installer.zip` for Kodi 19/20/21.
 6. Open `Add-ons > Video add-ons > Nikod Program Feed`.
+
+For Kodi 18/Leia, select `NikodProgramFeed-legacy-kodi18.zip` instead.
 
 Optional: install `repository.nikod.programfeed-0.1.0.zip` from the same source to enable repository-style updates.
 
@@ -51,8 +53,9 @@ Optional: install `repository.nikod.programfeed-0.1.0.zip` from the same source 
 GitHub Releases contain the user-facing install ZIPs:
 
 - `NikodProgramFeed-installer.zip`: direct install package for the playable video addon.
+- `NikodProgramFeed-legacy-kodi18.zip`: legacy package for Kodi 18/Leia Python 2 runtimes.
 - `repository.nikod.programfeed-0.1.0.zip`: optional repository package for update/distribution metadata.
-- `plugin.video.nikod.programfeed-0.1.16.zip`: direct addon package, mainly for debugging/manual installs.
+- `plugin.video.nikod.programfeed-0.1.18.zip`: direct addon package, mainly for debugging/manual installs.
 
 ## Build
 
