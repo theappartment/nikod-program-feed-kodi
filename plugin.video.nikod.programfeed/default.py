@@ -289,7 +289,7 @@ def resolve_media_url(url, user_agent, timeout):
         html = fetch_page_text(url, user_agent, timeout)
     except Exception as exc:
         xbmc.log("Nikod Program Feed page resolver failed: {0}".format(exc))
-        return url
+        return ""
 
     direct = extract_direct_media_url(html, url)
     if direct:
@@ -436,6 +436,13 @@ def add_notice(handle, title, plot):
     xbmcplugin.addDirectoryItem(handle, sys.argv[0], item, isFolder=False)
 
 
+def notify(title, message):
+    try:
+        xbmcgui.Dialog().notification(title, message, xbmcgui.NOTIFICATION_INFO, 6000)
+    except Exception:
+        xbmc.log("{0}: {1}".format(title, message))
+
+
 def plugin_url(params):
     query = url_encode.urlencode(params)
     return sys.argv[0] + ("?" + query if query else "")
@@ -512,12 +519,13 @@ def resolve_direct_stream(handle, title, direct_url, user_agent, timeout):
 
     playable_url = resolve_media_url(direct_url, user_agent, timeout)
     if not playable_url:
+        notify("Nikod Program Feed", "No direct video stream found for Kodi.")
         add_notice(
             handle,
             "No direct video stream found",
             "This URL opens a web player page, but no direct video stream was found for Kodi.",
         )
-        xbmcplugin.endOfDirectory(handle)
+        xbmcplugin.setResolvedUrl(handle, False, xbmcgui.ListItem(label=title))
         return
 
     mime_type = media_content_type(playable_url.split("|", 1)[0], user_agent, timeout)
@@ -545,12 +553,13 @@ def resolve_program(handle, program, user_agent, timeout):
 
     playable_url = resolve_media_url(program["stream_url"], user_agent, timeout)
     if not playable_url:
+        notify("Nikod Program Feed", "No direct video stream found for Kodi.")
         add_notice(
             handle,
             "No direct video stream found",
             "This event opens a web player page, but no direct video stream was found for Kodi.",
         )
-        xbmcplugin.endOfDirectory(handle)
+        xbmcplugin.setResolvedUrl(handle, False, xbmcgui.ListItem(label=program["title"]))
         return
 
     mime_type = media_content_type(playable_url.split("|", 1)[0], user_agent, timeout)
