@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <settings>
   <category label="General">
-    <setting id="feed_url" type="text" label="Program feed URL" default="https://sportsonline.vc/prog.txt"/>
+    <setting id="feed_url" type="text" label="Program feed URL" default="https://www.sportsonline.vc/prog.txt"/>
     <setting id="direct_stream_url" type="text" label="Direct channel URL" default="https://v4.sportssonline.click/channels/hd/hd8.php"/>
     <setting id="direct_stream_title" type="text" label="Direct channel title" default="Canale diretto"/>
     <setting id="feed_user_agent" type="text" label="User-Agent" default="Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"/>

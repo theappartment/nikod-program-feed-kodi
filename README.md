@@ -52,7 +52,7 @@ GitHub Releases contain the user-facing install ZIPs:
 
 - `NikodProgramFeed-installer.zip`: direct install package for the playable video addon.
 - `repository.nikod.programfeed-0.1.0.zip`: optional repository package for update/distribution metadata.
-- `plugin.video.nikod.programfeed-0.1.14.zip`: direct addon package, mainly for debugging/manual installs.
+- `plugin.video.nikod.programfeed-0.1.15.zip`: direct addon package, mainly for debugging/manual installs.
 
 ## Build
 

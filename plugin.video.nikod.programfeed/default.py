@@ -30,7 +30,7 @@ DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 )
-DEFAULT_FEED_URL = "https://sportsonline.vc/prog.txt"
+DEFAULT_FEED_URL = "https://www.sportsonline.vc/prog.txt"
 DEFAULT_DIRECT_STREAM_URL = "https://v4.sportssonline.click/channels/hd/hd8.php"
 DEFAULT_DIRECT_STREAM_TITLE = "Canale diretto"
 
@@ -73,7 +73,17 @@ def verified_ssl_context():
 def is_ssl_verify_error(exc):
     reason = getattr(exc, "reason", exc)
     verify_error = getattr(ssl, "SSLCertVerificationError", None)
-    return verify_error is not None and (isinstance(reason, verify_error) or isinstance(exc, verify_error))
+    if verify_error is not None and (isinstance(reason, verify_error) or isinstance(exc, verify_error)):
+        return True
+    if isinstance(reason, ssl.SSLError) or isinstance(exc, ssl.SSLError):
+        return True
+    return "ssl" in str(reason).lower() or "certificate" in str(reason).lower()
+
+
+def unverified_ssl_context():
+    if hasattr(ssl, "_create_unverified_context"):
+        return ssl._create_unverified_context()
+    return None
 
 
 def request_for(url, user_agent, method=None):
@@ -157,10 +167,10 @@ def fetch_text_with_dns_fallback(url, user_agent, timeout):
                     )
                 )
                 try:
-                    return fetch_text(candidate, user_agent, timeout, ssl._create_unverified_context())
+                    return fetch_text(candidate, user_agent, timeout, unverified_ssl_context())
                 except url_error.URLError as fallback_exc:
                     last_error = fallback_exc
-                    if should_try_next_feed_url(fallback_exc):
+                    if should_try_next_feed_url(fallback_exc) or is_ssl_verify_error(fallback_exc):
                         continue
                     raise
             if should_try_next_feed_url(exc):
