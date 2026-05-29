@@ -86,15 +86,18 @@ def unverified_ssl_context():
     return None
 
 
-def request_for(url, user_agent, method=None):
-    request = url_request.Request(url, headers={"User-Agent": user_agent})
+def request_for(url, user_agent, method=None, extra_headers=None):
+    headers = {"User-Agent": user_agent}
+    if extra_headers:
+        headers.update(extra_headers)
+    request = url_request.Request(url, headers=headers)
     if method and hasattr(request, "get_method"):
         request.get_method = lambda: method
     return request
 
 
-def fetch_text(url, user_agent, timeout, ssl_context=None):
-    request = request_for(url, user_agent)
+def fetch_text(url, user_agent, timeout, ssl_context=None, extra_headers=None):
+    request = request_for(url, user_agent, extra_headers=extra_headers)
     response = urlopen(request, timeout=timeout, context=ssl_context)
     try:
         data = response.read()
@@ -182,6 +185,18 @@ def fetch_text_with_dns_fallback(url, user_agent, timeout):
     raise url_error.URLError("No candidate feed URLs were available")
 
 
+def fetch_page_text(url, user_agent, timeout, referer=""):
+    headers = {}
+    if referer:
+        headers["Referer"] = referer
+    try:
+        return fetch_text(url, user_agent, timeout, verified_ssl_context(), headers)
+    except url_error.URLError as exc:
+        if is_ssl_verify_error(exc):
+            return fetch_text(url, user_agent, timeout, unverified_ssl_context(), headers)
+        raise
+
+
 def urlopen(request, timeout, context=None):
     if context is not None:
         try:
@@ -229,6 +244,74 @@ def media_content_type(url, user_agent, timeout):
 
     xbmc.log("Nikod Program Feed media probe content-type: {0}".format(content_type or "unknown"))
     return content_type
+
+
+def is_direct_media_url(url):
+    lower = url.lower()
+    return any(token in lower for token in (".m3u8", ".mp4", ".m4v", ".mov", ".mpd"))
+
+
+def absolute_url(base_url, value):
+    value = (value or "").replace("\\/", "/").strip()
+    if not value:
+        return ""
+    return url_parse.urljoin(base_url, value)
+
+
+def extract_direct_media_url(html, base_url):
+    patterns = [
+        r"""['"]([^'"]+?\.m3u8[^'"]*)['"]""",
+        r"""['"]([^'"]+?\.mp4[^'"]*)['"]""",
+        r"""['"]([^'"]+?\.m4v[^'"]*)['"]""",
+        r"""['"]([^'"]+?\.mpd[^'"]*)['"]""",
+        r"""(?:source|file|url)\s*[:=]\s*['"]([^'"]+)['"]""",
+    ]
+    for pattern in patterns:
+        for match in re.findall(pattern, html, re.IGNORECASE):
+            candidate = absolute_url(base_url, match)
+            if is_direct_media_url(candidate):
+                return candidate
+    return ""
+
+
+def extract_iframe_url(html, base_url):
+    match = re.search(r"""<iframe[^>]+src=['"]([^'"]+)['"]""", html, re.IGNORECASE)
+    if match:
+        return absolute_url(base_url, match.group(1))
+    return ""
+
+
+def resolve_media_url(url, user_agent, timeout):
+    if is_direct_media_url(url):
+        return url
+
+    try:
+        html = fetch_page_text(url, user_agent, timeout)
+    except Exception as exc:
+        xbmc.log("Nikod Program Feed page resolver failed: {0}".format(exc))
+        return url
+
+    direct = extract_direct_media_url(html, url)
+    if direct:
+        xbmc.log("Nikod Program Feed resolved direct media URL from page")
+        return direct
+
+    iframe = extract_iframe_url(html, url)
+    if iframe:
+        xbmc.log("Nikod Program Feed found iframe player: {0}".format(iframe))
+        try:
+            iframe_html = fetch_page_text(iframe, user_agent, timeout, referer=url)
+            direct = extract_direct_media_url(iframe_html, iframe)
+            if direct:
+                xbmc.log("Nikod Program Feed resolved direct media URL from iframe")
+                return direct + "|Referer={0}&User-Agent={1}".format(
+                    url_encode.quote(iframe, safe=""),
+                    url_encode.quote(user_agent, safe=""),
+                )
+        except Exception as exc:
+            xbmc.log("Nikod Program Feed iframe resolver failed: {0}".format(exc))
+
+    return ""
 
 
 def describe_url_error(url, exc):
@@ -427,9 +510,19 @@ def resolve_direct_stream(handle, title, direct_url, user_agent, timeout):
         xbmcplugin.endOfDirectory(handle)
         return
 
-    mime_type = media_content_type(direct_url, user_agent, timeout)
-    item = xbmcgui.ListItem(label=title, path=direct_url)
-    item.setPath(direct_url)
+    playable_url = resolve_media_url(direct_url, user_agent, timeout)
+    if not playable_url:
+        add_notice(
+            handle,
+            "No direct video stream found",
+            "This URL opens a web player page, but no direct video stream was found for Kodi.",
+        )
+        xbmcplugin.endOfDirectory(handle)
+        return
+
+    mime_type = media_content_type(playable_url.split("|", 1)[0], user_agent, timeout)
+    item = xbmcgui.ListItem(label=title, path=playable_url)
+    item.setPath(playable_url)
     if mime_type:
         item.setMimeType(mime_type)
     item.setProperty("IsPlayable", "true")
@@ -437,7 +530,7 @@ def resolve_direct_stream(handle, title, direct_url, user_agent, timeout):
         "video",
         {
             "title": title,
-            "plot": direct_url,
+            "plot": playable_url,
             "genre": "Program Feed",
         },
     )
@@ -450,10 +543,20 @@ def resolve_program(handle, program, user_agent, timeout):
         xbmcplugin.endOfDirectory(handle)
         return
 
-    mime_type = media_content_type(program["stream_url"], user_agent, timeout)
+    playable_url = resolve_media_url(program["stream_url"], user_agent, timeout)
+    if not playable_url:
+        add_notice(
+            handle,
+            "No direct video stream found",
+            "This event opens a web player page, but no direct video stream was found for Kodi.",
+        )
+        xbmcplugin.endOfDirectory(handle)
+        return
 
-    item = xbmcgui.ListItem(label=program["title"], path=program["stream_url"])
-    item.setPath(program["stream_url"])
+    mime_type = media_content_type(playable_url.split("|", 1)[0], user_agent, timeout)
+
+    item = xbmcgui.ListItem(label=program["title"], path=playable_url)
+    item.setPath(playable_url)
     if mime_type:
         item.setMimeType(mime_type)
     item.setProperty("IsPlayable", "true")
